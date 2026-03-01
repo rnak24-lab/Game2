@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0a0a1f"/><stop offset="100%" stop-color="#0c1929"/></linearGradient>
+    <radialGradient id="stars3" cx="50%" cy="30%"><stop offset="0%" stop-color="#f1c40f" stop-opacity=".15"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+  </defs>
+  <rect fill="url(#bg3)" width="400" height="600"/>
+  <rect fill="url(#stars3)" width="400" height="600"/>
+  <circle cx="120" cy="80" r="2" fill="#fff" opacity=".8"/><circle cx="280" cy="60" r="2" fill="#fff" opacity=".6"/>
+  <circle cx="180" cy="120" r="1.5" fill="#fff" opacity=".7"/><circle cx="320" cy="150" r="2" fill="#fff" opacity=".5"/>
+  <circle cx="80" cy="180" r="1.5" fill="#fff" opacity=".6"/><circle cx="350" cy="90" r="2" fill="#fff" opacity=".7"/>
+  <text x="200" y="300" text-anchor="middle" font-size="80" fill="#f1c40f" opacity=".8">⭐</text>
+  <text x="200" y="400" text-anchor="middle" font-size="24" fill="#2c6e8a" font-family="serif" letter-spacing="4">슬아의 별</text>
+  <text x="200" y="440" text-anchor="middle" font-size="14" fill="#888" font-family="sans-serif">별이 쏟아지는 밤하늘 아래...</text>
+</svg>
