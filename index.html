@@ -73,6 +73,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .sp-phase{font-size:.65rem;padding:2px 8px;border-radius:3px;font-weight:700}
 .sp-phase.day{background:rgba(232,125,47,.2);color:var(--orange);border:1px solid rgba(232,125,47,.4)}
 .sp-phase.night{background:rgba(123,77,184,.2);color:#b388ff;border:1px solid rgba(123,77,184,.4)}
+.sp-weather{font-size:.65rem;padding:2px 8px;border-radius:3px;font-weight:700;margin-left:auto;cursor:help;position:relative}
+.sp-weather.sunny{background:rgba(255,193,7,.15);color:#ffd54f;border:1px solid rgba(255,193,7,.4)}
+.sp-weather.cloudy{background:rgba(158,158,158,.15);color:#bdbdbd;border:1px solid rgba(158,158,158,.4)}
+.sp-weather.rainy{background:rgba(41,128,185,.15);color:#64b5f6;border:1px solid rgba(41,128,185,.4)}
+.sp-weather.foggy{background:rgba(149,117,205,.15);color:#b39ddb;border:1px solid rgba(149,117,205,.4)}
+.sp-weather.stormy{background:rgba(229,57,53,.15);color:#ef5350;border:1px solid rgba(229,57,53,.4)}
+.sp-weather-tip{display:none;position:absolute;left:0;top:100%;margin-top:4px;background:rgba(20,20,30,.95);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:8px 10px;font-size:.68rem;color:#ccc;width:180px;z-index:999;font-weight:400;line-height:1.4;white-space:normal}
+.sp-weather:hover .sp-weather-tip{display:block}
+.weather-bonus-tag{display:inline-block;font-size:.58rem;padding:1px 5px;border-radius:3px;background:rgba(241,196,15,.15);color:var(--gold);border:1px solid rgba(241,196,15,.3);margin-left:4px;vertical-align:middle;animation:pulse-warn 2s infinite}
+.weather-bonus-msg{text-align:center;color:var(--gold);font-size:.78rem;margin:6px 0;padding:6px 10px;background:rgba(241,196,15,.08);border-radius:6px;border:1px solid rgba(241,196,15,.15)}
 .sp-section{margin-top:6px}
 .sp-section-title{font-size:.65rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
 .sp-bar{display:flex;align-items:center;gap:4px;font-size:.72rem;margin-bottom:5px;position:relative}
@@ -1567,8 +1577,11 @@ function enterActionMode(){
 function showDayTrans(day,cb){
   const el=document.getElementById('day-trans');
   document.getElementById('dt-text').textContent=`~ Day ${day} ~`;
+  const weather=E.getWeather();
+  const weatherStr=weather?` ${weather.icon} ${weather.name}`:'';
   const subs=['태양이 떠오른다...','새로운 하루가 시작된다.','살아남아야 한다.','오늘도 버텨야 한다.'];
-  document.getElementById('dt-sub').textContent=day===1?'무인도에서의 첫 날이 밝았다.':subs[Math.floor(Math.random()*subs.length)];
+  let subText=day===1?'무인도에서의 첫 날이 밝았다.':subs[Math.floor(Math.random()*subs.length)];
+  document.getElementById('dt-sub').textContent=subText+weatherStr;
   el.classList.add('active');sfx('transition');
   setTimeout(()=>{el.classList.remove('active');setTimeout(cb,500);},2500);
 }
@@ -1584,6 +1597,7 @@ function buildStatsPanel(){
       <span class="sp-day">DAY</span>
       <span class="sp-day-num" id="sp-day">1</span>
       <span class="sp-phase day" id="sp-phase">낮</span>
+      <span class="sp-weather sunny" id="sp-weather">☀️ 맑음<div class="sp-weather-tip" id="sp-weather-tip"></div></span>
     </div>
     <div class="sp-section">
       <div class="sp-section-title">PLAYER</div>
@@ -1640,6 +1654,14 @@ function updateStats(){
   const phaseLabels={day:'낮',mid:'중간',night:'밤'};
   ph.textContent=phaseLabels[G.phase]||'낮';
   ph.className='sp-phase '+(G.phase==='night'?'night':'day');
+  // Update weather display
+  const weatherData=GAME_DATA.weather.types.find(w=>w.id===G.weather);
+  if(weatherData){
+    const wEl=document.getElementById('sp-weather');
+    wEl.textContent='';
+    wEl.className='sp-weather '+weatherData.id;
+    wEl.innerHTML=`${weatherData.icon} ${weatherData.name}<div class="sp-weather-tip" id="sp-weather-tip">${weatherData.desc}</div>`;
+  }
   const bg=document.getElementById('vn-bg');
   const dm=document.getElementById('vn-dim');
   if(G.phase==='night'){bg.className='vn-bg night';dm.className='vn-dim night';}
@@ -1818,7 +1840,8 @@ function showDayActions(){
   updateStats();
   document.getElementById('dlg-box').classList.remove('hidden');
   document.getElementById('dlg-name').style.display='none';
-  document.getElementById('dlg-text').textContent='행동을 선택하세요.';
+  const w=E.getWeather();
+  document.getElementById('dlg-text').textContent=w?`${w.icon} ${w.name} — 행동을 선택하세요.`:'행동을 선택하세요.';
   document.getElementById('dlg-ind').style.display='none';
   const menu=document.getElementById('act-area');
   document.getElementById('act-info').textContent=`남은 행동: ${G.actionsLeft}/3`;
@@ -1927,6 +1950,7 @@ function refreshFeedCharList(){
 function openSearchFS(){
   if(G.actionsLeft<=0){toast('행동력이 부족합니다','warning');return;}
   const locs=E.getAvailableLocations();
+  const weather=E.getWeather();
   // Split into 3 columns
   const cols=[[],[],[]];
   locs.forEach((loc,i)=>cols[i%3].push(loc));
@@ -1937,19 +1961,25 @@ function openSearchFS(){
       const loot=loc.loot[1];
       const shown=E.shuffleArray([...loot]).slice(0,3);
       let infoH=shown.map(i=>i.card!=='nothing'?`<span class="prob">${Math.round(i.prob*100)}%</span> ${i.name}`:`<span class="prob">${Math.round(i.prob*100)}%</span> ???`).join('<br>');
-      h+=`<div class="fs-loc-btn" onclick="doSearchFS('${loc.id}')">
+      const wb=E.getWeatherSearchBonus(loc.id);
+      const hasBonus=wb.probBonus>0;
+      const bonusTag=hasBonus?`<span class="weather-bonus-tag">${weather.icon} 날씨 보너스 +${Math.round(wb.probBonus*100)}%</span>`:'';
+      const bonusStyle=hasBonus?'border-color:rgba(241,196,15,.5);box-shadow:0 0 15px rgba(241,196,15,.15)':'';
+      h+=`<div class="fs-loc-btn" onclick="doSearchFS('${loc.id}')" style="${bonusStyle}">
         <div class="loc-icon">${loc.icon}</div>
-        <div class="loc-name">${loc.name}</div>
+        <div class="loc-name">${loc.name}${bonusTag}</div>
         <div class="loc-level">Lv.${info.level} (탐색 ${info.visits}회)</div>
         <div class="loc-info">${infoH}</div>
       </div>`;
     });
     h+='</div>';return h;
   }).join('');
+  const weatherInfo=weather?`<div style="text-align:center;font-size:.78rem;color:#aaa;margin-bottom:8px">${weather.icon} 오늘의 날씨: <strong style="color:${weather.id==='stormy'?'var(--red)':weather.id==='rainy'?'var(--blue)':'var(--text)'}">${weather.name}</strong> — ${weather.desc}</div>`:'';
   document.getElementById('fs-root').innerHTML=`<div class="fs-overlay">
     <button class="fs-close" onclick="closeFS()">← 돌아가기</button>
     <div class="fs-actions-left">남은 행동: ${G.actionsLeft}/3</div>
     <h2>&#128269; 수색</h2>
+    ${weatherInfo}
     <div class="fs-sub">어디를 수색할까?</div>
     <div class="fs-cols">${colsH}</div>
   </div>`;
@@ -1977,7 +2007,9 @@ function doSearchFS(locId){
       if(item) consumableMsg+=`${item.icon} ${item.name} 획득!`;
     }
   }
-  let h=`<h3>${result.location} 수색 결과</h3><p style="color:#888;font-size:.78rem">체력 -${result.hpCost}</p><div class="card-area">`;
+  let h=`<h3>${result.location} 수색 결과</h3><p style="color:#888;font-size:.78rem">체력 -${result.hpCost}</p>`;
+  if(result.weatherBonusMsg)h+=`<div class="weather-bonus-msg">${E.getWeather().icon} ${result.weatherBonusMsg}</div>`;
+  h+=`<div class="card-area">`;
   if(result.isNothing){h+=`<div style="text-align:center;padding:30px;color:#888">${result.foundDesc}</div>`;}
   else{
     const c=GAME_DATA.cards[result.cardId];
@@ -2742,9 +2774,13 @@ function goNextDay(){
   if(G.gameOver){showGameOver();return;}
   // Check madness at end of night
   if(checkAndTriggerMadness())return;
-  addActionLog('🌅',`Day ${G.day} 시작`);
+  const weather=E.getWeather();
+  addActionLog('🌅',`Day ${G.day} 시작`,weather?`${weather.icon} ${weather.name}`:'');
   playBGM('day');
-  showDayTrans(G.day,()=>startDayGreeting());
+  showDayTrans(G.day,()=>{
+    if(weather)toast(`${weather.icon} 오늘의 날씨: ${weather.name}`,weather.id==='stormy'?'warning':'info');
+    startDayGreeting();
+  });
 }
 
 // ===== CHAR DETAIL =====

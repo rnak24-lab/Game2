@@ -52,6 +52,9 @@ class GameEngine {
             // Search bonus from night star watch
             searchBonus: 0,
 
+            // Weather
+            weather: this.rollWeather(),
+
             // Next day bonuses
             nextDayBonuses: {
                 hpCostReduction: false,
@@ -279,10 +282,15 @@ class GameEngine {
             this.state.locationLevels[locationId]++;
         }
 
+        // Weather bonus for this location
+        const weatherBonus = this.getWeatherSearchBonus(locationId);
+
         // HP cost
-        let hpCost = 10;
+        let hpCost = 10 + weatherBonus.hpCostMod;
         if (this.state.nextDayBonuses.hpCostReduction) hpCost = Math.floor(hpCost * 0.7);
         if (this.state.shelter >= 50) hpCost = Math.floor(hpCost * 0.8);
+        // Weather bonus locations reduce HP cost by 20%
+        if (weatherBonus.probBonus > 0) hpCost = Math.floor(hpCost * 0.8);
         this.state.player.hp = Math.max(0, this.state.player.hp - hpCost);
 
         // Determine loot
@@ -290,7 +298,7 @@ class GameEngine {
         const lootTable = loc.loot[1]; // day 1 loot for prototype
         const levelBonus = level * 0.03; // 3% better per level
 
-        // Roll for each possible loot, adjusted by level
+        // Roll for each possible loot, adjusted by level + weather
         let roll = Math.random();
         let cumProb = 0;
         let result = null;
@@ -298,9 +306,9 @@ class GameEngine {
         for (const item of lootTable) {
             let adjustedProb = item.prob;
             if (item.card !== 'nothing') {
-                adjustedProb += levelBonus;
+                adjustedProb += levelBonus + weatherBonus.probBonus;
             } else {
-                adjustedProb = Math.max(0.05, adjustedProb - (levelBonus * lootTable.length));
+                adjustedProb = Math.max(0.02, adjustedProb - (levelBonus * lootTable.length) - weatherBonus.nothingReduction);
             }
             cumProb += adjustedProb;
             if (roll <= cumProb) {
@@ -319,6 +327,7 @@ class GameEngine {
             foundDesc: result.desc,
             cardId: result.card,
             isNothing: result.card === 'nothing',
+            weatherBonusMsg: weatherBonus.bonusMsg,
         };
 
         // Add card to deck if not nothing and deck not full
@@ -946,11 +955,17 @@ class GameEngine {
             healBonus: false,
         };
 
+        // Roll new weather for the day
+        const prevWeather = this.state.weather;
+        this.state.weather = this.rollWeather();
+
         this.state.dayLog = [];
 
         return {
             day: this.state.day,
             phase: 'day',
+            weather: this.state.weather,
+            prevWeather: prevWeather,
         };
     }
 
@@ -1343,5 +1358,32 @@ class GameEngine {
 
     clamp(val, min, max) {
         return Math.max(min, Math.min(max, val));
+    }
+
+    // ===== WEATHER SYSTEM =====
+    rollWeather() {
+        const types = GAME_DATA.weather.types;
+        let roll = Math.random();
+        let cumProb = 0;
+        for (const w of types) {
+            cumProb += w.prob;
+            if (roll <= cumProb) return w.id;
+        }
+        return 'sunny';
+    }
+
+    getWeather() {
+        return GAME_DATA.weather.types.find(w => w.id === this.state.weather);
+    }
+
+    getWeatherSearchBonus(locationId) {
+        const weather = this.getWeather();
+        if (!weather) return { probBonus: 0, nothingReduction: 0, hpCostMod: 0, bonusMsg: null };
+        const probBonus = weather.searchBonus[locationId] || 0;
+        const nothingReduction = probBonus > 0 ? weather.nothingReduction : 0;
+        const hpCostMod = weather.hpCostMod || 0;
+        const msgs = GAME_DATA.weather.bonusMessages[weather.id];
+        const bonusMsg = msgs ? (msgs[locationId] || null) : null;
+        return { probBonus, nothingReduction, hpCostMod, bonusMsg };
     }
 }

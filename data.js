@@ -772,6 +772,60 @@ const GAME_DATA = {
         talk_share: '자신의 경험과 이야기를 나눕니다. 상호 이해와 유대를 강화합니다.',
     },
 
+    // ===== WEATHER SYSTEM =====
+    weather: {
+        types: [
+            {
+                id: 'sunny', name: '맑음', icon: '☀️',
+                desc: '화창한 날씨. 시야가 좋아 해변과 절벽 수색에 유리하다.',
+                prob: 0.30,
+                searchBonus: { beach: 0.15, cliff: 0.15, reef: 0.10 },
+                hpCostMod: 0,        // HP 소모 변화 없음
+                nothingReduction: 0.05 // 허탕 확률 5% 감소
+            },
+            {
+                id: 'cloudy', name: '흐림', icon: '☁️',
+                desc: '구름이 낀 날. 갯바위의 조수가 낮아 해산물 채집에 좋다.',
+                prob: 0.25,
+                searchBonus: { tidepools: 0.15, wreckage: 0.10, mountain: 0.10 },
+                hpCostMod: 0,
+                nothingReduction: 0.03
+            },
+            {
+                id: 'rainy', name: '비', icon: '🌧️',
+                desc: '비가 내린다. 개울과 숲에서 수확이 풍성해진다.',
+                prob: 0.20,
+                searchBonus: { stream: 0.20, forest_edge: 0.15, deep_forest: 0.15 },
+                hpCostMod: 2,         // HP 2 추가 소모
+                nothingReduction: 0.08 // 허탕 확률 8% 감소 (비 오면 자원 풍부)
+            },
+            {
+                id: 'foggy', name: '안개', icon: '🌫️',
+                desc: '짙은 안개. 동굴과 깊은 숲에서 숨겨진 것을 발견하기 쉽다.',
+                prob: 0.15,
+                searchBonus: { cave: 0.20, deep_forest: 0.15, forest_edge: 0.10 },
+                hpCostMod: 1,
+                nothingReduction: 0.06
+            },
+            {
+                id: 'stormy', name: '폭풍', icon: '⛈️',
+                desc: '거센 폭풍! 위험하지만 난파선 잔해와 해변에 새로운 표류물이 밀려온다.',
+                prob: 0.10,
+                searchBonus: { wreckage: 0.25, beach: 0.20 },
+                hpCostMod: 5,         // HP 5 추가 소모
+                nothingReduction: 0.12 // 허탕 확률 크게 감소 (폭풍이 물건을 밀어옴)
+            }
+        ],
+        // 날씨별 장소 수색 시 추가 설명
+        bonusMessages: {
+            sunny:  { beach: '햇빛에 반짝이는 표류물이 잘 보인다!', cliff: '맑은 날 절벽 위에서 멀리까지 보인다!', reef: '맑은 바다 속이 훤히 보인다!' },
+            cloudy: { tidepools: '조수가 낮아 해산물이 잔뜩 드러났다!', wreckage: '잔해 속을 차분히 뒤질 수 있다.', mountain: '시원한 바람이 등산을 돕는다.' },
+            rainy:  { stream: '빗물로 개울이 불어나 물고기가 많다!', forest_edge: '비 온 후 버섯과 열매가 풍성하다!', deep_forest: '촉촉한 숲에서 약초가 잘 보인다!' },
+            foggy:  { cave: '안개 속에서 동굴 깊숙이 들어갈 수 있었다!', deep_forest: '안개 사이로 희귀한 식물이 보인다!', forest_edge: '안개 속 숲에서 숨겨진 길을 발견했다!' },
+            stormy: { wreckage: '폭풍이 새로운 잔해를 밀어왔다!', beach: '거센 파도가 귀한 물건을 해변으로 가져왔다!' }
+        }
+    },
+
     // ===== GAME CONSTANTS =====
     constants: {
         maxDeck: 24,
