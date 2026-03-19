@@ -83,6 +83,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .sp-weather:hover .sp-weather-tip{display:block}
 .weather-bonus-tag{display:inline-block;font-size:.58rem;padding:1px 5px;border-radius:3px;background:rgba(241,196,15,.15);color:var(--gold);border:1px solid rgba(241,196,15,.3);margin-left:4px;vertical-align:middle;animation:pulse-warn 2s infinite}
 .weather-bonus-msg{text-align:center;color:var(--gold);font-size:.78rem;margin:6px 0;padding:6px 10px;background:rgba(241,196,15,.08);border-radius:6px;border:1px solid rgba(241,196,15,.15)}
+.death-scene-overlay{background:rgba(0,0,0,.95)!important;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 1.5s ease}
+.death-scene-overlay.active{opacity:1}
+.death-scene-content{text-align:center;max-width:400px}
+.death-scene-art{width:300px;height:200px;margin:0 auto 20px}
+.death-scene-art svg{width:100%;height:100%}
+.death-scene-name{font-family:Cinzel,serif;font-size:1.8rem;font-weight:900;margin-bottom:8px;text-shadow:0 0 20px currentColor}
+.death-scene-cause{font-size:.85rem;color:#999;font-style:italic}
 .sp-section{margin-top:6px}
 .sp-section-title{font-size:.65rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
 .sp-bar{display:flex;align-items:center;gap:4px;font-size:.72rem;margin-bottom:5px;position:relative}
@@ -1799,6 +1806,10 @@ function startDayGreeting(){
     let lootMsg=ret.loot.map(l=>{const item=GAME_DATA.consumables[l.itemId];return item?`${item.icon}${item.name}`:'아이템';}).join(', ');
     toast(`${ret.charName}이(가) 돌아왔다! ${lootMsg||'빈 손으로...'}`,lootMsg?'success':'info');
   }
+
+  // === Check for at-risk characters and build warning dialogue ===
+  const dangerLines=getDangerWarningLines();
+
   const alive=Object.keys(CHARS).filter(id=>G.characters[id].alive);
   let greeter;
   if(G.day===2&&lastGreeter&&G.characters[lastGreeter]?.alive)greeter=lastGreeter;
@@ -1806,10 +1817,108 @@ function startDayGreeting(){
   lastGreeter=greeter;
   const cData=GAME_DATA.characters[greeter];
   const c=G.characters[greeter];
-  showSprite(greeter);
-  const lines=getGreetingLines(greeter,cData,c);
-  qDlg(lines,()=>{showSprite(null);enterActionMode();});
+
+  if(dangerLines.length>0){
+    // Show danger warnings first, then normal greeting
+    const firstDanger=dangerLines[0].charId;
+    showSprite(firstDanger);
+    const allLines=[...dangerLines.flatMap(d=>d.lines)];
+    const greetLines=getGreetingLines(greeter,cData,c);
+    allLines.push(...greetLines);
+    // Chain: show danger sprite, then switch to greeter for greeting
+    qDlg(allLines,()=>{showSprite(null);enterActionMode();});
+  } else {
+    showSprite(greeter);
+    const lines=getGreetingLines(greeter,cData,c);
+    qDlg(lines,()=>{showSprite(null);enterActionMode();});
+  }
 }
+
+// === DANGER WARNING LINES (아침 위험 경고 시스템) ===
+function getDangerWarningLines(){
+  const dangers=[];
+  const playerName=G.playerName||'당신';
+  for(const[id,c]of Object.entries(G.characters)){
+    if(!c.alive||E.isDispatched(id))continue;
+    const name=CHARS[id];
+    const color=CHAR_COLOR[id];
+    const lines=[];
+
+    // Hunger critical (>=80)
+    if(c.hunger>=80){
+      lines.push({speaker:name,text:getHungerWarning(id),color});
+      if(c.hunger>=90) lines.push({speaker:name,text:getHungerCritical(id),color});
+      lines.push({speaker:'',text:`⚠ ${name}의 굶주림이 ${Math.round(c.hunger)}%입니다! 식량을 배급하세요.`});
+    }
+    // Thirst critical (>=80)
+    else if(c.thirst>=80){
+      lines.push({speaker:name,text:getThirstWarning(id),color});
+      if(c.thirst>=90) lines.push({speaker:name,text:getThirstCritical(id),color});
+      lines.push({speaker:'',text:`⚠ ${name}의 갈증이 ${Math.round(c.thirst)}%입니다! 물을 배급하세요.`});
+    }
+    // Stress critical (>=75)
+    else if(c.stress>=75){
+      lines.push({speaker:name,text:getStressDanger(id),color});
+      if(c.stress>=90) lines.push({speaker:'',text:`🚨 ${name}의 스트레스가 극도로 높습니다! 광기가 발동할 수 있습니다!`});
+      else lines.push({speaker:'',text:`⚠ ${name}의 스트레스가 ${Math.round(c.stress)}%입니다. 대화로 케어해주세요.`});
+    }
+    // Hope very low (<20)
+    else if(c.hope<20){
+      lines.push({speaker:name,text:getHopeDanger(id),color});
+      lines.push({speaker:'',text:`⚠ ${name}의 희망이 ${Math.round(c.hope)}%로 매우 낮습니다.`});
+    }
+    // Gyuwon affection special
+    else if(id==='gyuwon'&&c.affection<=30&&c.affection>20){
+      lines.push({speaker:name,text:'...저는 여기 있어도 되는 건가요? 아무도 저를...',color});
+      lines.push({speaker:'',text:`⚠ 양규원의 호감도가 ${Math.round(c.affection)}%입니다. 대화를 나눠주세요.`});
+    }
+
+    if(lines.length>0) dangers.push({charId:id,lines});
+  }
+  return dangers;
+}
+
+function getHungerWarning(id){return{
+  minye:'...배가 너무 고파서 머리가 안 돌아가. 제발 뭐라도 좀...',
+  gyuwon:'저... 어지러워요. 어제부터 아무것도 못 먹어서...',
+  seula:'...에너지가 부족해. 이러다 쓰러질 수도 있어.',
+  gyeol:'하하... 뭔가 눈앞이 깜깜한데? 좀 먹어야 할 것 같아.'
+}[id]||'...배가 너무 고파...';}
+
+function getHungerCritical(id){return{
+  minye:'진짜로... 이러다 죽을 것 같아. 농담 아니야.',
+  gyuwon:'(무릎을 꿇으며) 더 이상... 힘이 없어요...',
+  seula:'...곧 의식을 잃을 것 같아. 서둘러.',
+  gyeol:'...다리에 힘이 안 들어가. 미안, 나 좀 쉴게...'
+}[id]||'...이러다 정말...';}
+
+function getThirstWarning(id){return{
+  minye:'목이... 말라서 말도 잘 안 나와.',
+  gyuwon:'물... 물 좀... 입술이 다 갈라졌어요...',
+  seula:'탈수 증상이 시작됐어. 빨리 물을 구해야 해.',
+  gyeol:'목이 너무 말라... 침도 안 나와.'
+}[id]||'...물이 필요해...';}
+
+function getThirstCritical(id){return{
+  minye:'(거친 숨을 내쉬며) ...물. 제발.',
+  gyuwon:'(목소리가 갈라지며) 더... 이상은...',
+  seula:'...신장이 안 좋아. 이러면 내일은 없어.',
+  gyeol:'(입술이 갈라진 채) ...다들 먼저 마셔. 난 괜찮...'
+}[id]||'...물이...';}
+
+function getStressDanger(id){return{
+  minye:'...건들지 마. 한계야. 진짜 한계라고.',
+  gyuwon:'(떨리는 목소리로) ...저 이상한 소리가 들려요. 계속...',
+  seula:'...머릿속이 시끄러워. 조용히 해줘.',
+  gyeol:'(웃지 않는 표정으로) ...나도 좀 쉬고 싶어. 진짜로.'
+}[id]||'...한계야...';}
+
+function getHopeDanger(id){return{
+  minye:'...어차피 구조 안 와. 여기서 다 죽는 거야.',
+  gyuwon:'(텅 빈 눈으로) ...아무 의미 없어요. 전부 다.',
+  seula:'...수학적으로 우리가 발견될 확률은 0에 수렴해.',
+  gyeol:'(처음으로 고개를 숙이며) ...정말로 집에 돌아갈 수 있는 걸까.'
+}[id]||'...희망이 없어...';}
 
 function getGreetingLines(charId,data,char){
   const name=data.name;const color=CHAR_COLOR[charId];const day=G.day;
@@ -2594,20 +2703,23 @@ function transitionToNight(){
   if(G.gameOver){showGameOver();return;}
   // Check madness after end-of-day processing
   if(checkAndTriggerMadness())return;
-  playBGM('night');updateStats();
-  document.getElementById('dlg-name').style.display='none';
-  document.getElementById('dlg-text').textContent='';
-  document.getElementById('dlg-ind').style.display='none';
-  // Check for special events to fire at night
-  // Special events trigger after 3+ conversations with a character
-  const seCharId=checkSpecialEventReady();
-  if(seCharId){
-    // Special event consumes a dialogue slot for this night
-    G.nightActionsLeft.talk=false;
-    setTimeout(()=>startSpecialEventNight(seCharId),500);
-  } else {
-    setTimeout(showNightActions,500);
-  }
+
+  // Check for character deaths and show death scenes before continuing
+  checkAndShowDeathScenes(()=>{
+    if(G.gameOver){showGameOver();return;}
+    playBGM('night');updateStats();
+    document.getElementById('dlg-name').style.display='none';
+    document.getElementById('dlg-text').textContent='';
+    document.getElementById('dlg-ind').style.display='none';
+    // Check for special events to fire at night
+    const seCharId=checkSpecialEventReady();
+    if(seCharId){
+      G.nightActionsLeft.talk=false;
+      setTimeout(()=>startSpecialEventNight(seCharId),500);
+    } else {
+      setTimeout(showNightActions,500);
+    }
+  });
 }
 // ===== SPECIAL EVENT SYSTEM (Visual Novel / Love-delivery style) =====
 function checkSpecialEventReady(){
@@ -2774,12 +2886,17 @@ function goNextDay(){
   if(G.gameOver){showGameOver();return;}
   // Check madness at end of night
   if(checkAndTriggerMadness())return;
-  const weather=E.getWeather();
-  addActionLog('🌅',`Day ${G.day} 시작`,weather?`${weather.icon} ${weather.name}`:'');
-  playBGM('day');
-  showDayTrans(G.day,()=>{
-    if(weather)toast(`${weather.icon} 오늘의 날씨: ${weather.name}`,weather.id==='stormy'?'warning':'info');
-    startDayGreeting();
+
+  // Check for character deaths from end-of-night processing
+  checkAndShowDeathScenes(()=>{
+    if(G.gameOver){showGameOver();return;}
+    const weather=E.getWeather();
+    addActionLog('🌅',`Day ${G.day} 시작`,weather?`${weather.icon} ${weather.name}`:'');
+    playBGM('day');
+    showDayTrans(G.day,()=>{
+      if(weather)toast(`${weather.icon} 오늘의 날씨: ${weather.name}`,weather.id==='stormy'?'warning':'info');
+      startDayGreeting();
+    });
   });
 }
 
@@ -2856,6 +2973,214 @@ function showOv(html,hasClose=true){
   document.getElementById('ov-root').innerHTML=`<div class="overlay" onclick="event.target===this&&${hasClose?'closeOv()':'void(0)'}"><div class="ov-box">${html}</div></div>`;
 }
 function closeOv(){document.getElementById('ov-root').innerHTML='';}
+
+// ===== CHARACTER DEATH SCENE =====
+function checkAndShowDeathScenes(cb){
+  // Find characters who just died this turn (alive===false and deathCause set, not yet shown)
+  const newDeaths=[];
+  for(const[id,c]of Object.entries(G.characters)){
+    if(!c.alive&&c.deathCause&&!c.deathSceneShown){
+      newDeaths.push(id);
+      c.deathSceneShown=true;
+    }
+  }
+  if(newDeaths.length===0){if(cb)cb();return;}
+  // Show death scenes sequentially
+  showDeathSceneChain(newDeaths,0,cb);
+}
+
+function showDeathSceneChain(deathIds,idx,cb){
+  if(idx>=deathIds.length){if(cb)cb();return;}
+  showDeathScene(deathIds[idx],()=>showDeathSceneChain(deathIds,idx+1,cb));
+}
+
+function showDeathScene(charId,cb){
+  const c=G.characters[charId];
+  const cData=GAME_DATA.characters[charId];
+  const name=CHARS[charId];
+  const color=CHAR_COLOR[charId];
+  const cause=c.deathCause;
+
+  // Get death SVG illustration
+  const deathArt=getDeathIllustration(charId,cause);
+
+  // Build death dialogue lines (3-4 exchanges)
+  const lines=getDeathDialogue(charId,cause);
+
+  // Show fullscreen death scene
+  const fsRoot=document.getElementById('fs-root');
+  fsRoot.innerHTML=`<div class="fs-overlay death-scene-overlay">
+    <div class="death-scene-content">
+      <div class="death-scene-art">${deathArt}</div>
+      <div class="death-scene-name" style="color:${color}">${name}</div>
+      <div class="death-scene-cause">${c.deathCauseText||cData.deathDesc||'원인 불명'}</div>
+    </div>
+  </div>`;
+
+  // Fade in effect
+  setTimeout(()=>{
+    const overlay=fsRoot.querySelector('.death-scene-overlay');
+    if(overlay)overlay.classList.add('active');
+  },50);
+
+  // After 2 seconds, close scene and play dialogue
+  setTimeout(()=>{
+    fsRoot.innerHTML='';
+    showSprite(charId);
+    // Play emotional dialogue
+    qDlg(lines,()=>{
+      showSprite(null);
+      // Brief black screen
+      const el=document.getElementById('day-trans');
+      document.getElementById('dt-text').textContent=`${name}이(가) 떠났다...`;
+      document.getElementById('dt-sub').textContent='';
+      el.classList.add('active');
+      setTimeout(()=>{el.classList.remove('active');setTimeout(()=>{updateStats();if(cb)cb();},400);},2000);
+    });
+  },3000);
+}
+
+function getDeathIllustration(charId,cause){
+  // SVG illustration of a fallen character silhouette
+  const colors={minye:'#D4A017',gyuwon:'#7f8c8d',seula:'#2c6e8a',gyeol:'#9b59b6'};
+  const clr=colors[charId]||'#888';
+  const causeIcons={hunger:'🍂',thirst:'💧',affection_low:'💔',reason_low:'🌑',stress:'⚡'};
+  const icon=causeIcons[cause]||'☠';
+
+  return `<svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="dg1" cx="50%" cy="80%" r="60%">
+        <stop offset="0%" stop-color="${clr}" stop-opacity=".15"/>
+        <stop offset="100%" stop-color="transparent"/>
+      </radialGradient>
+      <filter id="blur1"><feGaussianBlur stdDeviation="2"/></filter>
+    </defs>
+    <!-- Ground shadow -->
+    <ellipse cx="150" cy="170" rx="100" ry="15" fill="url(#dg1)"/>
+    <!-- Fallen body silhouette -->
+    <g filter="url(#blur1)" opacity=".3">
+      <ellipse cx="150" cy="155" rx="70" ry="18" fill="${clr}"/>
+    </g>
+    <!-- Collapsed figure -->
+    <g transform="translate(150,140)">
+      <!-- Torso (lying down) -->
+      <ellipse cx="0" cy="0" rx="35" ry="12" fill="${clr}" opacity=".6"/>
+      <!-- Head -->
+      <circle cx="-40" cy="-5" r="14" fill="${clr}" opacity=".7"/>
+      <!-- Hair strands -->
+      <path d="M-50,-15 Q-55,-25 -45,-20" stroke="${clr}" fill="none" stroke-width="2" opacity=".5"/>
+      <path d="M-35,-18 Q-30,-28 -28,-18" stroke="${clr}" fill="none" stroke-width="2" opacity=".5"/>
+      <!-- Arm reaching out -->
+      <path d="M20,5 Q45,15 55,10" stroke="${clr}" fill="none" stroke-width="4" stroke-linecap="round" opacity=".5"/>
+      <!-- Hand open -->
+      <circle cx="57" cy="9" r="5" fill="${clr}" opacity=".4"/>
+      <!-- Legs curled -->
+      <path d="M25,8 Q40,20 35,30" stroke="${clr}" fill="none" stroke-width="5" stroke-linecap="round" opacity=".4"/>
+      <path d="M15,10 Q25,25 20,32" stroke="${clr}" fill="none" stroke-width="5" stroke-linecap="round" opacity=".4"/>
+    </g>
+    <!-- Cause icon floating above -->
+    <text x="150" y="80" text-anchor="middle" font-size="36" opacity=".8">${icon}</text>
+    <!-- Scattered particles -->
+    <circle cx="80" cy="120" r="2" fill="${clr}" opacity=".3"><animate attributeName="opacity" values=".3;0;.3" dur="3s" repeatCount="indefinite"/></circle>
+    <circle cx="220" cy="130" r="1.5" fill="${clr}" opacity=".2"><animate attributeName="opacity" values=".2;0;.2" dur="2.5s" repeatCount="indefinite"/></circle>
+    <circle cx="120" cy="100" r="1" fill="${clr}" opacity=".25"><animate attributeName="opacity" values=".25;0;.25" dur="2s" repeatCount="indefinite"/></circle>
+    <circle cx="200" cy="110" r="1.8" fill="${clr}" opacity=".2"><animate attributeName="opacity" values=".2;0;.2" dur="3.5s" repeatCount="indefinite"/></circle>
+  </svg>`;
+}
+
+function getDeathDialogue(charId,cause){
+  const name=CHARS[charId];
+  const color=CHAR_COLOR[charId];
+  // Get a living character to react
+  const alive=Object.keys(CHARS).filter(id=>id!==charId&&G.characters[id]?.alive);
+  const reactor=alive.length>0?alive[Math.floor(Math.random()*alive.length)]:null;
+  const rName=reactor?CHARS[reactor]:null;
+  const rColor=reactor?CHAR_COLOR[reactor]:null;
+
+  const dialogues={
+    hunger:{
+      minye:[
+        {speaker:name,text:'(거칠게 숨을 몰아쉬며) ...아, 진짜... 이렇게 끝나는 거야?',color},
+        {speaker:name,text:'...한 번만이라도 배부르게 먹고 싶었는데.',color},
+        {speaker:'',text:`${name}의 손이 힘없이 떨어졌다.`},
+        ...(reactor?[{speaker:rName,text:`${name}...? ${name}!! 일어나! 제발!!`,color:rColor}]:[]),
+      ],
+      gyuwon:[
+        {speaker:name,text:'(약한 목소리로) ...미안해요. 제가 짐이 됐죠.',color},
+        {speaker:name,text:'...따뜻한 밥 한 끼... 그게 그렇게 어려운 거였구나...',color},
+        ...(reactor?[{speaker:rName,text:'규원아! 안 돼, 눈 떠! 여기 먹을 거 있어!',color:rColor}]:[]),
+        {speaker:'',text:`하지만 ${name}은 더 이상 대답하지 않았다.`},
+      ],
+      seula:[
+        {speaker:name,text:'(차분하게) ...예상보다 빨랐네. 인체는 72시간이면...',color},
+        {speaker:name,text:'...아, 계산을 틀렸어. 내가.',color},
+        ...(reactor?[{speaker:rName,text:'슬아야! 지금 무슨 소리를 하는 거야! 정신 차려!',color:rColor}]:[]),
+        {speaker:'',text:`${name}의 눈이 천천히 감겼다.`},
+      ],
+      gyeol:[
+        {speaker:name,text:'(힘없이 웃으며) 다들... 미안. 형이 좀 더 버텨야 했는데.',color},
+        {speaker:name,text:'...동생들 밥은 챙겨줘. 부탁이야.',color},
+        {speaker:'',text:`${name}의 미소가 굳어갔다.`},
+        ...(reactor?[{speaker:rName,text:'결이...! 안 돼... 안 돼!!',color:rColor}]:[]),
+      ]
+    },
+    thirst:{
+      minye:[
+        {speaker:name,text:'(갈라진 목소리로) ...물 한 모금이면 되는데.',color},
+        {speaker:name,text:'...이렇게 허무한 거야? 진짜?',color},
+        ...(reactor?[{speaker:rName,text:'민예야! 여기 물... 물 가져올게!',color:rColor}]:[]),
+        {speaker:'',text:`...하지만 이미 늦었다.`},
+      ],
+      gyuwon:[
+        {speaker:name,text:'(속삭이듯) ...목이 타요. 전부 다 타요...',color},
+        {speaker:name,text:'...꿈에서... 비가 왔었는데...',color},
+        {speaker:'',text:`${name}의 마른 입술이 더 이상 움직이지 않았다.`},
+        ...(reactor?[{speaker:rName,text:'규원...! (물을 가져오지만) ...규원아?',color:rColor}]:[]),
+      ],
+      seula:[
+        {speaker:name,text:'...탈수로 인한 장기부전. 예측 가능했어.',color},
+        {speaker:name,text:'...그래도... 좀 더 살고 싶었는데.',color},
+        ...(reactor?[{speaker:rName,text:'슬아! 이런 말 하지 마! 일어나!',color:rColor}]:[]),
+        {speaker:'',text:`${name}은 조용히 눈을 감았다.`},
+      ],
+      gyeol:[
+        {speaker:name,text:'(웃으려 하며) ...내 몫의 물은 다들 나눠 마셔.',color},
+        {speaker:name,text:'...괜찮아. 나는... 괜찮으니까.',color},
+        {speaker:'',text:`그 말을 마지막으로 ${name}은 쓰러졌다.`},
+        ...(reactor?[{speaker:rName,text:'결이!! 일어나!! 괜찮지 않잖아!!',color:rColor}]:[]),
+      ]
+    },
+    affection_low:{
+      gyuwon:[
+        {speaker:name,text:'...처음부터 알고 있었어요. 아무도 저를 원하지 않는다는 거.',color},
+        {speaker:name,text:'...귀찮게 해서 미안해요. 이제 더 이상 안 그럴게요.',color},
+        {speaker:'',text:`${name}은 절벽 쪽으로 천천히 걸어갔다.`},
+        ...(reactor?[{speaker:rName,text:'규원아!! 거기 서! 그러지 마!!',color:rColor}]:[]),
+        {speaker:'',text:'...멈추지 않았다.'},
+      ]
+    },
+    reason_low:{
+      gyeol:[
+        {speaker:name,text:'(비틀거리며) 하하... 저기 보여? 집이 보여. 집이야.',color},
+        {speaker:name,text:'엄마가 부르고 있어! 나 간다!!',color},
+        ...(reactor?[{speaker:rName,text:'결이! 멈춰!! 거기는 절벽이야!!',color:rColor}]:[]),
+        {speaker:'',text:`${name}은 달려가다 발을 헛디뎠다. 아무도 잡지 못했다.`},
+      ]
+    }
+  };
+
+  // Get dialogue for this cause, or generate generic
+  const causeDialogues=dialogues[cause];
+  if(causeDialogues&&causeDialogues[charId]) return causeDialogues[charId];
+
+  // Generic fallback
+  return [
+    {speaker:name,text:'...더 이상 못 버티겠어.',color},
+    {speaker:name,text:'...미안해. 다들.',color},
+    {speaker:'',text:`${name}이(가) 쓰러졌다.`},
+    ...(reactor?[{speaker:rName,text:`${name}!! 안 돼!!`,color:rColor}]:[]),
+  ];
+}
 
 // ===== GAME OVER =====
 function showGameOver(){
