@@ -1273,22 +1273,42 @@ class GameEngine {
         // Stress >= 100 does NOT cause instant death
         // Instead, stress > 90 triggers madness sequence in UI (checked separately)
 
-        // Special death conditions
-        // Gyuwon: affection too low -> suicide
-        if (charId === 'gyuwon' && char.affection <= GAME_DATA.constants.gyuwonAffectionDangerLow) {
+        // === Affection death (ALL characters): 자포자기 — 불신 → 분리 → 사망 ===
+        if (char.affection <= 15) {
             char.alive = false;
             char.deathCause = 'affection_low';
-            char.deathCauseText = '극도로 낮은 호감도로 인한 자포자기';
-            this.state.dayLog.push(`${data.name}: ${data.deathDesc}`);
+            char.deathCauseText = '극도의 불신으로 팀을 떠나 홀로 사망';
+            this.state.dayLog.push(`${data.name}: 너희를 못 믿겠다며 떠났다... 다시 돌아오지 않았다.`);
             return;
         }
 
-        // Gyeol: reason too low -> fall death
-        if (charId === 'gyeol' && data.deathCondition === 'reason_low' && char.reason < data.deathThreshold) {
+        // === Reason death (ALL characters): 이성 상실 → 이상 행동 → 사고사 ===
+        if (char.reason < 15) {
             char.alive = false;
             char.deathCause = 'reason_low';
-            char.deathCauseText = '이성 상실로 인한 추락사';
-            this.state.dayLog.push(`${data.name}: ${data.deathDesc}`);
+            const reasonDeathTexts = {
+                minye: '독초를 음식으로 착각하고 먹어 중독사',
+                gyuwon: '환각에 빠져 바다로 걸어 들어가 익사',
+                seula: '계산 착오로 절벽에서 추락사',
+                gyeol: '환각에 빠져 달려가다 절벽에서 추락사'
+            };
+            char.deathCauseText = reasonDeathTexts[charId] || '이성 상실로 인한 사고사';
+            this.state.dayLog.push(`${data.name}: 이성을 잃고 위험한 행동을 하다 사고를 당했다...`);
+            return;
+        }
+
+        // === Hope death (ALL characters): 절망 → 포기 → 자멸 ===
+        if (char.hope < 10) {
+            char.alive = false;
+            char.deathCause = 'hope_low';
+            const hopeDeathTexts = {
+                minye: '모든 것을 포기하고 아무것도 하지 않다 사망',
+                gyuwon: '조용히 눈을 감고 다시 뜨지 않았다',
+                seula: '모든 기록을 불태우고 바다를 바라보다 사라졌다',
+                gyeol: '마지막 미소를 남기고 눈을 감았다'
+            };
+            char.deathCauseText = hopeDeathTexts[charId] || '희망을 잃고 스스로 포기';
+            this.state.dayLog.push(`${data.name}: 희망을 완전히 잃었다... 더 이상 버틸 이유가 없었다.`);
             return;
         }
 

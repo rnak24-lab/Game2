@@ -238,8 +238,6 @@ const GAME_DATA = {
             stressTrigger: 'hope_low', // hope low -> stress skyrockets
             stressMultiplier: 2.0,
             deathDesc: '높은 곳에서 떨어졌다... 이성을 잃은 결과였다.',
-            deathCondition: 'reason_low', // reason < 20 -> fall death
-            deathThreshold: 20,
             benefitThreshold: 50,
             benefitDesc: '전체 스트레스 증가 10~30% 방어',
             pastStories: [
