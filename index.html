@@ -478,6 +478,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .db-slot{aspect-ratio:3/4;background:rgba(255,255,255,.02);border:1.5px dashed rgba(255,255,255,.06);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#333;transition:all .25s;cursor:pointer;position:relative;overflow:hidden}
 .db-slot.filled{border-style:solid;border-color:rgba(58,158,110,.25);background:rgba(58,158,110,.03)}
 .db-slot.filled:hover{border-color:var(--orange);transform:translateY(-6px) scale(1.05);box-shadow:0 8px 25px rgba(0,0,0,.4);z-index:5}
+.db-slot.locked{opacity:.3;cursor:default;border-color:rgba(255,255,255,.03)}
+.db-slot.next-slot{border-color:rgba(241,196,15,.25);border-style:dashed;animation:pulse-slot 2s infinite}
+@keyframes pulse-slot{0%,100%{border-color:rgba(241,196,15,.15)}50%{border-color:rgba(241,196,15,.4)}}
 .db-slot.drag-over{border-color:var(--gold);background:rgba(241,196,15,.06);border-style:solid}
 .db-slot .slot-card{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;text-align:center}
 .db-slot .slot-card .sc-art{width:70%;aspect-ratio:1;margin-bottom:4px}
@@ -1031,9 +1034,22 @@ document.getElementById('btn-start').onclick=()=>{
   E.addConsumable('morning_dew','water');
   showScreen('scr-game');
   buildStatsPanel();
-  // Start with Day 0 prologue before Day 1 tutorial
-  startDay0Prologue();
+  // Ask tutorial skip before starting
+  askTutorialSkip();
 };
+
+// ===== TUTORIAL SKIP PROMPT =====
+function askTutorialSkip(){
+  const h=`<div style="text-align:center;padding:30px 20px">
+    <h3 style="color:var(--orange);margin-bottom:16px;font-size:1.1rem">튜토리얼을 진행하시겠습니까?</h3>
+    <p style="color:#aaa;font-size:.82rem;margin-bottom:24px">처음 플레이하신다면 튜토리얼을 추천합니다.</p>
+    <div style="display:flex;gap:14px;justify-content:center">
+      <button class="act-btn" style="padding:12px 32px;font-size:.9rem;border-color:var(--green);color:var(--green)" onclick="closeOv();startDay0Prologue()">네, 진행할게요</button>
+      <button class="act-btn" style="padding:12px 32px;font-size:.9rem;border-color:var(--orange);color:var(--orange)" onclick="closeOv();skipTutorial()">아니요, 스킵</button>
+    </div>
+  </div>`;
+  showOv(h,false);
+}
 
 // ===== TUTORIAL STATE =====
 let tutorialMode=false;
@@ -1051,7 +1067,6 @@ function tutSetTimeout(fn,delay){
 // ===== DAY 0 PROLOGUE (Background Story) =====
 function startDay0Prologue(){
   tutorialMode=true;
-  showTutSkipBtn();
   hideActions();
   // Hide stats panel during prologue for cinematic feel
   document.getElementById('stats-panel').style.opacity='0';
@@ -1176,7 +1191,6 @@ function startDay1Tutorial(){
   tutorialMode=true;
   tutorialStep=0;
   updateStats();hideActions();
-  showTutSkipBtn();
   const pname=G.playerName;
   lastGreeter='gyeol';
 
@@ -1403,29 +1417,29 @@ function afterTutDispatch(){
     openDeckBuilder_tutorial();
   });
 }
+let _tutDeckMode=false;
 function openDeckBuilder_tutorial(){
+  _tutDeckMode=true;
   openDeckBuilder();
-  // Add tutorial hint to the overlay
-  tutSetTimeout(()=>{
+}
+// Patch: after every openDeckBuilder re-render, re-apply tutorial overrides
+const _origOpenDeckBuilder=openDeckBuilder;
+openDeckBuilder=function(){
+  _origOpenDeckBuilder();
+  if(_tutDeckMode&&tutorialMode){
+    // Add tutorial hint
     const ovBox=document.querySelector('.ov-box');
     if(ovBox){
       const hint=document.createElement('div');
       hint.style.cssText='padding:10px;margin-top:10px;background:rgba(241,196,15,.08);border:1px solid rgba(241,196,15,.2);border-radius:8px;font-size:.78rem;color:var(--gold);text-align:center';
-      hint.textContent='🎓 튜토리얼: 카드를 드래그하여 그리드에 배치해보세요! 닫기 버튼으로 진행합니다.';
+      hint.textContent='🎓 튜토리얼: 카드를 그리드에 배치해보세요! 닫기 버튼으로 진행합니다.';
       ovBox.insertBefore(hint,ovBox.firstChild);
     }
-  },100);
-  // Override close to continue tutorial
-  const origClose=closeOv;
-  window._tutDeckClose=()=>{
-    origClose();
-    afterTutDeck();
-  };
-  tutSetTimeout(()=>{
+    // Override close button to continue tutorial
     const closeBtn=document.querySelector('.ov-close');
-    if(closeBtn)closeBtn.onclick=()=>window._tutDeckClose();
-  },200);
-}
+    if(closeBtn)closeBtn.onclick=()=>{_tutDeckMode=false;closeOv();afterTutDeck();};
+  }
+};
 function afterTutDeck(){
   // Tutorial: transition to night
   showSprite('gyeol');
@@ -1531,6 +1545,7 @@ function removeTutSkipBtn(){
 function skipTutorial(){
   tutorialMode=false;
   tutorialStep=0;
+  _tutDeckMode=false;
   G.tutorialComplete=true;
   // Clear ALL pending tutorial timeouts
   _tutorialTimeouts.forEach(id=>clearTimeout(id));
@@ -2646,13 +2661,17 @@ function openDeckBuilder(){
   
   // Build 3x5 grid slots (15 total)
   let gridH='';
+  const lastFilled=selectedCards.reduce((last,s,i)=>s?i:last,-1);
+  const nextEmpty=lastFilled+1;
   for(let i=0;i<15;i++){
     const cardId=selectedCards[i];
     const card=cardId?GAME_DATA.cards[cardId]:null;
     const artSvg=card&&typeof getCardArt==='function'?getCardArt(cardId):'';
     const useSvg=artSvg.startsWith('<svg');
     const rarityColors={rare:'#5dade2',epic:'#8e44ad',unique:'#f39c12'};
-    gridH+=`<div class="db-slot ${card?'filled':''}" data-slot="${i}" ondrop="dropCard(event,${i})" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" onclick="removeFromSlot(${i})">
+    const isNextSlot=i===nextEmpty&&nextEmpty<15;
+    const canDrop=card||isNextSlot;
+    gridH+=`<div class="db-slot ${card?'filled':''} ${isNextSlot?'next-slot':''} ${!card&&!isNextSlot?'locked':''}" data-slot="${i}" ${canDrop?`ondrop="dropCard(event,${i})" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')"`:''} ${card?`onclick="removeFromSlot(${i})"`:''}>
       ${card?`<div class="slot-card">
         <div class="sc-art">${useSvg?artSvg:`<span class="sc-icon">${card.icon}</span>`}</div>
         <div class="sc-name">${card.name}</div>
@@ -2714,13 +2733,13 @@ function openDeckBuilder(){
   showOv(h);
 }
 function addToFirstEmpty(cardId){
-  const emptyIdx=selectedCards.findIndex((s,i)=>!s&&i<15);
-  if(emptyIdx===-1){
-    if(selectedCards.length<15){selectedCards.push(cardId);}
-    else{toast('그리드가 가득 찼습니다!','warning');return;}
-  } else {
-    selectedCards[emptyIdx]=cardId;
-  }
+  const selCount=selectedCards.filter(Boolean).length;
+  if(selCount>=15){toast('그리드가 가득 찼습니다!','warning');return;}
+  // Always append to end (after last filled slot)
+  const lastFilled=selectedCards.reduce((last,s,i)=>s?i:last,-1);
+  const nextIdx=lastFilled+1;
+  if(nextIdx>=15){toast('그리드가 가득 찼습니다!','warning');return;}
+  selectedCards[nextIdx]=cardId;
   sfx('click');
   openDeckBuilder();
 }
@@ -2729,15 +2748,21 @@ function dropCard(ev,slot){
   ev.target.closest('.db-slot')?.classList.remove('drag-over');
   const cardId=ev.dataTransfer.getData('text/plain');
   if(!cardId)return;
-  if(selectedCards[slot])return; // slot already filled
   const selCount=selectedCards.filter(Boolean).length;
   if(selCount>=15)return;
-  selectedCards[slot]=cardId;
-  openDeckBuilder(); // re-render
+  // Ignore target slot, always append to next empty after last filled
+  const lastFilled=selectedCards.reduce((last,s,i)=>s?i:last,-1);
+  const nextIdx=lastFilled+1;
+  if(nextIdx>=15)return;
+  selectedCards[nextIdx]=cardId;
+  openDeckBuilder();
 }
 function removeFromSlot(slot){
   if(!selectedCards[slot])return;
-  selectedCards[slot]=null;
+  // Remove card and compact array (shift remaining cards left)
+  selectedCards.splice(slot,1);
+  // Pad back to maintain array structure
+  while(selectedCards.length<15) selectedCards.push(null);
   openDeckBuilder();
 }
 function savePresetPrompt(){
