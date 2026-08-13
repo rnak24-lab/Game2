@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
+  <defs>
+    <linearGradient id="bg4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a0a2e"/><stop offset="100%" stop-color="#0c1020"/></linearGradient>
+    <radialGradient id="fire4" cx="50%" cy="75%"><stop offset="0%" stop-color="#e74c3c" stop-opacity=".2"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+  </defs>
+  <rect fill="url(#bg4)" width="400" height="600"/>
+  <rect fill="url(#fire4)" width="400" height="600"/>
+  <text x="200" y="300" text-anchor="middle" font-size="80" fill="#b388ff" opacity=".8">💧</text>
+  <text x="200" y="400" text-anchor="middle" font-size="24" fill="#7b3fa0" font-family="serif" letter-spacing="4">한결의 눈물</text>
+  <text x="200" y="440" text-anchor="middle" font-size="14" fill="#888" font-family="sans-serif">꺼져가는 모닥불 앞에서...</text>
+</svg>

@@ -1,0 +1,85 @@
+{
+  "name": "stranded",
+  "productName": "STRANDED - 30 Days on the Island",
+  "version": "1.0.0",
+  "description": "30일간의 무인도 서바이벌 카드 게임 - A 30-day island survival card game",
+  "main": "electron-main.js",
+  "author": "STRANDED Dev Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack:win": "electron-builder --win --x64",
+    "pack:mac": "electron-builder --mac --x64",
+    "pack:linux": "electron-builder --linux --x64",
+    "pack:all": "electron-builder --win --mac --linux --x64",
+    "dist": "electron-builder --win --linux --x64"
+  },
+  "build": {
+    "appId": "com.stranded.game",
+    "productName": "STRANDED",
+    "copyright": "Copyright © 2026 STRANDED Dev Team",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron-main.js",
+      "preload.js",
+      "index.html",
+      "style.css",
+      "data.js",
+      "engine.js",
+      "main.js",
+      "ui.js",
+      "assets/**/*",
+      "icons/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icons/icon.ico",
+      "artifactName": "STRANDED-${version}-Setup-Win.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "icons/icon.ico",
+      "uninstallerIcon": "icons/icon.ico",
+      "installerHeaderIcon": "icons/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "icons/icon.png",
+      "category": "public.app-category.games",
+      "artifactName": "STRANDED-${version}-Mac.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "icon": "icons/icon.png",
+      "category": "Game",
+      "artifactName": "STRANDED-${version}-Linux.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}
